@@ -183,7 +183,7 @@ class _Fan1State extends State<Fan1> {
         StreamBuilder(
           stream: channel.stream,
           builder: (context, snapshot) {
-          return Text(snapshot.hasData ? '${snapshot.data}' : '');
+          return Text(snapshot.hasData ? '${snapshot.data}' : 'Connecting...');
           },
         ),
         SizedBox(height: 20),

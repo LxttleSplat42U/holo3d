@@ -153,6 +153,7 @@ class Fan1 extends StatefulWidget {
 class _Fan1State extends State<Fan1> {
   //Connect to WebSocket
   late WebSocketChannel channel;
+  double motorSpeed = 0;
 
   @override
   void initState() {
@@ -200,7 +201,23 @@ class _Fan1State extends State<Fan1> {
           },
           child: Text('Turn LED OFF'),
         ),
+        SizedBox(height: 20),
+        Text('Fan Speed', style: style),
+        Slider(
+          value: motorSpeed,
+          min: 0,
+          max: 100,
+          divisions: 20,
+          label: (motorSpeed).toInt().toString(),
+          onChanged: (value){
+            setState(() {
+              motorSpeed = value; 
+            });
+            channel.sink.add('MOTOR_SPEED:${(motorSpeed.toInt() / 100) * 150}'); //Send and Convert to lower range for safety (speed limit max 1800 rpm no load)
+          },
+        ),
         ],
+        
       ),
       ),
     );

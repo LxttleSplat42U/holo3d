@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:web_socket_channel/web_socket_channel.dart'; //Use for WebSocket
@@ -151,18 +153,120 @@ class Fan1 extends StatefulWidget {
 }
 
 class _Fan1State extends State<Fan1> {
+  static const List<String> displayOptions = ['Circle', 'Spiral'];
+  String fan1Display = displayOptions[0]; //Global variable to store Fan1 display image
+  bool fan1On = false;
+  String fan2Display = displayOptions[0]; //Global variable to store Fan2 display image
+  bool fan2On = false;
+
   //Connect to WebSocket
-  late WebSocketChannel channel;
+  WebSocketChannel? channel; // Make nullable
   double motorSpeed = 0;
+  bool isConnected = false; 
+  bool isConnecting = false; 
+  String connectionStatus = 'Not connected';
+
+Timer? connectionTimeout; // Add timeout timer to keep from freezing when wifi networks are switched
+
+void connectToWebSocket() {
+  if (isConnecting || isConnected) return; // Prevent multiple connections
+
+  setState(() {
+    isConnecting = true;
+    connectionStatus = 'Connecting...';
+  });
+
+  // Set connection timeout
+    connectionTimeout = Timer(Duration(seconds: 5), () {
+      if (isConnecting && mounted) {
+        print('Connection timeout reached');
+        _handleConnectionFailure('Connection timeout');
+      }
+    });
+
+    try {
+      print('About to create WebSocket connection');
+      
+      // Create connection directly
+      channel = WebSocketChannel.connect(
+        Uri.parse('ws://192.168.4.1/ws'),
+      );
+      
+      print('WebSocket connection created');
+
+      // Set up stream listener
+      channel!.stream.listen(
+        (data) {
+          print('Received from ESP32: $data');
+          if (mounted) {
+            setState(() {
+              isConnected = true;
+              isConnecting = false;
+              connectionStatus = 'Connected';
+            });
+          }
+        },
+        onError: (error) {
+          print('WebSocket error: $error');
+          if (mounted) {
+            setState(() {
+              isConnected = false;
+              isConnecting = false;
+              connectionStatus = 'Connection failed: $error';
+            });
+          }
+        },
+        onDone: () {
+          print('WebSocket connection closed');
+          if (mounted) {
+            setState(() {
+              isConnected = false;
+              isConnecting = false;
+              connectionStatus = 'Connection closed';
+            });
+          }
+        },
+        cancelOnError: true, // Important: cancel stream on error
+      );      
+
+    } catch (e) {
+      print('Immediate connection exception: $e');
+      _handleConnectionFailure('Connection failed: $e');
+      if (mounted) {
+        setState(() {
+          isConnected = false;
+          isConnecting = false;
+          connectionStatus = 'Connection failed: $e';
+        });
+      }
+    }
+  }
+
+  // Helper method to handle connection failures
+  void _handleConnectionFailure(String errorMessage) {
+    connectionTimeout?.cancel();
+    
+    if (mounted) {
+      setState(() {
+        isConnected = false;
+        isConnecting = false;
+        connectionStatus = errorMessage;
+      });
+    }
+
+    // Clean up the channel
+    try {
+      channel?.sink.close();
+    } catch (e) {
+      print('Error closing channel: $e');
+    }
+    channel = null;
+  }
 
   @override
-  void initState() {
-    print('Initstate start');
-    super.initState();
-    channel = WebSocketChannel.connect(
-      Uri.parse('ws://192.168.4.1:80/ws'),
-    );
-    print('Initstate end');
+  void dispose() {
+    channel?.sink.close();
+    super.dispose();
   }
 
   @override
@@ -178,47 +282,203 @@ class _Fan1State extends State<Fan1> {
     print('Scaffold start');
     return Scaffold(
       body: Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-        StreamBuilder(
-          stream: channel.stream,
-          builder: (context, snapshot) {
-          return Text(snapshot.hasData ? '${snapshot.data}' : 'Connecting...');
-          },
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            // Connection Status Row
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(connectionStatus),
+              ],
+            ),
+            SizedBox(height: 20),
+            if (!isConnected) ...[
+              
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  //Connect to server
+                  onPressed: isConnecting ? null : connectToWebSocket,
+                  child: Text(isConnecting ? 'Connecting...' : 'Connect'),
+                ),
+              ],
+            ),
+            ],
+
+            if (isConnected) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      //Disconnect from server
+                      channel?.sink.close();
+                      setState(() {
+                        isConnected = false;
+                        isConnecting = false;
+                        connectionStatus = 'Lost connection';
+                      });
+                    },
+                    child: Text('Disconnect'),
+                  ),
+                ],
+              ),
+            
+            SizedBox(height: 20),
+            //Fan 1 Controls
+            IntrinsicHeight(
+              // Wrap Row with IntrinsicHeight
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(height: 20),
+                      Text("Fan 1 Controls"),
+                      SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.center, // Add this line
+                        children: [
+                          Text("Image:"),
+                          SizedBox(width: 10),
+                          DropdownButton<String>(
+                            value: fan1Display,
+                            items: displayOptions.map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
+                            onChanged: (String? newValue) {
+                              setState(() {
+                                fan1Display = newValue!;
+                                fan1On = true; // Auto turn on fan when changing display
+                              });
+                              channel!.sink.add('FAN_11:DISPLAY:${displayOptions.indexOf(fan1Display)}');
+                            },
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 20),                      
+                      ElevatedButton(
+                        onPressed: (!fan1On) ? () {
+                          setState(() {
+                            fan1On = true;                        
+                          });
+                          channel!.sink.add('FAN_11:DISPLAY:${displayOptions.indexOf(fan1Display)}');
+                        } : null,
+                        child: Text('Turn ON'),
+                      ),                      
+                      SizedBox(height: 10),
+                      ElevatedButton(
+                        onPressed: (fan1On) ? () {
+                          setState(() {
+                            fan1On = false;
+                          });
+                          channel!.sink.add('FAN_11:DISPLAY:${-1}');
+                        } : null,
+                        child: Text('Turn OFF'),
+                      ),
+                    ],
+                  ),
+                  // Vertical line between columns - now auto stretches
+                  Container(
+                    width: 1,
+                    color: Colors.grey,
+                    margin: EdgeInsets.symmetric(horizontal: 20),
+                  ),
+                  //Fan 2 Controls
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(height: 20),
+                      Text("Fan 2 Controls"),
+                      SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment:
+                            CrossAxisAlignment.center, // Add this line
+                        children: [
+                          Text("Image:"),
+                          SizedBox(width: 10),
+                          DropdownButton<String>(
+                            value: fan2Display,
+                            items: displayOptions.map((String value) {
+                              return DropdownMenuItem<String>(
+                                value: value,
+                                child: Text(value),
+                              );
+                            }).toList(),
+                            onChanged: (String? newValue) {
+                              setState(() {
+                                fan2Display = newValue!;
+                                fan2On = true; // Auto turn on fan when changing display
+                              });                              
+                              channel!.sink.add('FAN_12:DISPLAY:${displayOptions.indexOf(fan2Display)}');
+                            },
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: (!fan2On) ? () {
+                          setState(() {
+                            fan2On = true;
+                          });
+                          channel!.sink.add('FAN_12:DISPLAY:${displayOptions.indexOf(fan2Display)}');
+                        } : null,
+                        child: Text('Turn ON'),
+                      ),
+                      SizedBox(height: 10),
+                      ElevatedButton(
+                        onPressed: (fan2On) ? () {
+                          setState(() {
+                            fan2On = false;
+                          });
+                          channel!.sink.add('FAN_12:DISPLAY:${-1}');
+                        } : null,
+                        child: Text('Turn OFF'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.max,
+              children: [
+                Column(
+                  children: [
+                    SizedBox(height: 30),
+                    Text('Fan Speed', style: style),
+                    Slider(
+                      value: motorSpeed,
+                      min: 0,
+                      max: 100,
+                      divisions: 20,
+                      label: (motorSpeed).toInt().toString(),
+                      onChanged: (value) {
+                        setState(() {
+                          motorSpeed = value;
+                        });
+                        channel!.sink.add(
+                            'MOTOR_SPEED:${(motorSpeed.toInt() / 100) * 150}'); //Send and Convert to lower range for safety (speed limit max 1800 rpm no load)
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            ],
+          ],
         ),
-        SizedBox(height: 20),
-        ElevatedButton(
-          onPressed: () {
-          channel.sink.add('LED_ON');
-          },
-          child: Text('Turn LED ON'),
-        ),
-        SizedBox(height: 10),
-        ElevatedButton(
-          onPressed: () {
-          channel.sink.add('LED_OFF');
-          },
-          child: Text('Turn LED OFF'),
-        ),
-        SizedBox(height: 20),
-        Text('Fan Speed', style: style),
-        Slider(
-          value: motorSpeed,
-          min: 0,
-          max: 100,
-          divisions: 20,
-          label: (motorSpeed).toInt().toString(),
-          onChanged: (value){
-            setState(() {
-              motorSpeed = value; 
-            });
-            channel.sink.add('MOTOR_SPEED:${(motorSpeed.toInt() / 100) * 150}'); //Send and Convert to lower range for safety (speed limit max 1800 rpm no load)
-          },
-        ),
-        ],
-        
-      ),
       ),
     );
   }

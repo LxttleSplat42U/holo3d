@@ -6,7 +6,10 @@ import 'package:provider/provider.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:web_socket_channel/web_socket_channel.dart'; //Use for WebSocket
 
+int USER_WS_ID = 255; //Global variable to store user ID for WebSocket
+
 bool Fan1_LED = true; //Global variable to store LED state
+bool DemoMode = false; //Used to override and show fan controls without connecting to Holo3D fan system
 
 void main() {
   //runApp(MyApp());
@@ -90,13 +93,10 @@ class _MyHomePageState extends State<MyHomePage> {
     Widget page;
     switch (selectedIndex) {
       case 0:
-        page = GeneratorPage();
+        page = WelcomePage();
 
       case 1:
-        page = FavouritesPage();
-
-      case 2:
-        page = Fan1();
+        page = Fan();
 
       default:
         throw UnimplementedError('no widget for $selectedIndex');
@@ -116,12 +116,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     label: Text('Home'),
                   ),
                   NavigationRailDestination(
-                    icon: Icon(Icons.favorite),
-                    label: Text('Favorites'),
-                  ),
-                  NavigationRailDestination(
                     icon: Icon(Symbols.mode_fan),
-                    label: Text('Fan1'),
+                    label: Text('Fan Controls'),
                   ),
                 ],
                 selectedIndex: selectedIndex,
@@ -145,38 +141,41 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
-class Fan1 extends StatefulWidget {
-  const Fan1({Key? key}) : super(key: key);
+class Fan extends StatefulWidget {
+  const Fan({Key? key}) : super(key: key);
 
   @override
-  State<Fan1> createState() => _Fan1State();
+  State<Fan> createState() => _FanState();
 }
 
-class _Fan1State extends State<Fan1> {
+class _FanState extends State<Fan> {
   static const List<String> displayOptions = ['Circle', 'Spiral'];
-  String fan1Display = displayOptions[0]; //Global variable to store Fan1 display image
+  String fan1Display =
+      displayOptions[0]; //Global variable to store Fan1 display image
   bool fan1On = false;
-  String fan2Display = displayOptions[0]; //Global variable to store Fan2 display image
+  String fan2Display =
+      displayOptions[0]; //Global variable to store Fan2 display image
   bool fan2On = false;
 
   //Connect to WebSocket
   WebSocketChannel? channel; // Make nullable
   double motorSpeed = 0;
-  bool isConnected = false; 
-  bool isConnecting = false; 
+  bool isConnected = false;
+  bool isConnecting = false;
   String connectionStatus = 'Not connected';
 
-Timer? connectionTimeout; // Add timeout timer to keep from freezing when wifi networks are switched
+  Timer?
+      connectionTimeout; // Add timeout timer to keep from freezing when wifi networks are switched
 
-void connectToWebSocket() {
-  if (isConnecting || isConnected) return; // Prevent multiple connections
+  void connectToWebSocket() {
+    if (isConnecting || isConnected) return; // Prevent multiple connections
 
-  setState(() {
-    isConnecting = true;
-    connectionStatus = 'Connecting...';
-  });
+    setState(() {
+      isConnecting = true;
+      connectionStatus = 'Connecting...';
+    });
 
-  // Set connection timeout
+    // Set connection timeout
     connectionTimeout = Timer(Duration(seconds: 5), () {
       if (isConnecting && mounted) {
         print('Connection timeout reached');
@@ -186,13 +185,16 @@ void connectToWebSocket() {
 
     try {
       print('About to create WebSocket connection');
-      
+
       // Create connection directly
       channel = WebSocketChannel.connect(
         Uri.parse('ws://192.168.4.1/ws'),
       );
-      
+
       print('WebSocket connection created');
+      // Send registration message immediately
+      channel!.sink.add('REGISTER:$USER_WS_ID');
+      print('Sent registration: REGISTER:$USER_WS_ID');
 
       // Set up stream listener
       channel!.stream.listen(
@@ -227,8 +229,7 @@ void connectToWebSocket() {
           }
         },
         cancelOnError: true, // Important: cancel stream on error
-      );      
-
+      );
     } catch (e) {
       print('Immediate connection exception: $e');
       _handleConnectionFailure('Connection failed: $e');
@@ -245,7 +246,7 @@ void connectToWebSocket() {
   // Helper method to handle connection failures
   void _handleConnectionFailure(String errorMessage) {
     connectionTimeout?.cancel();
-    
+
     if (mounted) {
       setState(() {
         isConnected = false;
@@ -293,22 +294,20 @@ void connectToWebSocket() {
               ],
             ),
             SizedBox(height: 20),
-            if (!isConnected) ...[
-              
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton(
-                  //Connect to server
-                  onPressed: isConnecting ? null : connectToWebSocket,
-                  child: Text(isConnecting ? 'Connecting...' : 'Connect'),
-                ),
-              ],
-            ),
+            if (!isConnected || !DemoMode) ...[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    //Connect to server
+                    onPressed: isConnecting ? null : connectToWebSocket,
+                    child: Text(isConnecting ? 'Connecting...' : 'Connect'),
+                  ),
+                ],
+              ),
             ],
 
-            if (isConnected) ...[
+            if (isConnected || DemoMode) ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -326,156 +325,170 @@ void connectToWebSocket() {
                   ),
                 ],
               ),
-            
-            SizedBox(height: 20),
-            //Fan 1 Controls
-            IntrinsicHeight(
-              // Wrap Row with IntrinsicHeight
-              child: Row(
+
+              SizedBox(height: 20),
+              //Fan 1 Controls
+              IntrinsicHeight(
+                // Wrap Row with IntrinsicHeight
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(height: 20),
+                        Text("Fan 1 Controls"),
+                        SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.center, // Add this line
+                          children: [
+                            Text("Image:"),
+                            SizedBox(width: 10),
+                            DropdownButton<String>(
+                              value: fan1Display,
+                              items: displayOptions.map((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              }).toList(),
+                              onChanged: (String? newValue) {
+                                setState(() {
+                                  fan1Display = newValue!;
+                                  fan1On =
+                                      true; // Auto turn on fan when changing display
+                                });
+                                channel!.sink.add(
+                                    '11:DISPLAY:${displayOptions.indexOf(fan1Display)}');
+                              },
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: (!fan1On)
+                              ? () {
+                                  setState(() {
+                                    fan1On = true;
+                                  });
+                                  channel!.sink.add(
+                                      '11:DISPLAY:${displayOptions.indexOf(fan1Display)}');
+                                }
+                              : null,
+                          child: Text('Turn ON'),
+                        ),
+                        SizedBox(height: 10),
+                        ElevatedButton(
+                          onPressed: (fan1On)
+                              ? () {
+                                  setState(() {
+                                    fan1On = false;
+                                  });
+                                  channel!.sink.add('11:DISPLAY:${-1}');
+                                }
+                              : null,
+                          child: Text('Turn OFF'),
+                        ),
+                      ],
+                    ),
+                    // Vertical line between columns - now auto stretches
+                    Container(
+                      width: 1,
+                      color: Colors.grey,
+                      margin: EdgeInsets.symmetric(horizontal: 20),
+                    ),
+                    //Fan 2 Controls
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(height: 20),
+                        Text("Fan 2 Controls"),
+                        SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment:
+                              CrossAxisAlignment.center, // Add this line
+                          children: [
+                            Text("Image:"),
+                            SizedBox(width: 10),
+                            DropdownButton<String>(
+                              value: fan2Display,
+                              items: displayOptions.map((String value) {
+                                return DropdownMenuItem<String>(
+                                  value: value,
+                                  child: Text(value),
+                                );
+                              }).toList(),
+                              onChanged: (String? newValue) {
+                                setState(() {
+                                  fan2Display = newValue!;
+                                  fan2On =
+                                      true; // Auto turn on fan when changing display
+                                });
+                                channel!.sink.add(
+                                    '21:DISPLAY:${displayOptions.indexOf(fan2Display)}');
+                              },
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: (!fan2On)
+                              ? () {
+                                  setState(() {
+                                    fan2On = true;
+                                  });
+                                  channel!.sink.add(
+                                      '21:DISPLAY:${displayOptions.indexOf(fan2Display)}');
+                                }
+                              : null,
+                          child: Text('Turn ON'),
+                        ),
+                        SizedBox(height: 10),
+                        ElevatedButton(
+                          onPressed: (fan2On)
+                              ? () {
+                                  setState(() {
+                                    fan2On = false;
+                                  });
+                                  channel!.sink.add('21:DISPLAY:${-1}');
+                                }
+                              : null,
+                          child: Text('Turn OFF'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Row(
                 mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.max,
                 children: [
                   Column(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(height: 20),
-                      Text("Fan 1 Controls"),
-                      SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment:
-                            CrossAxisAlignment.center, // Add this line
-                        children: [
-                          Text("Image:"),
-                          SizedBox(width: 10),
-                          DropdownButton<String>(
-                            value: fan1Display,
-                            items: displayOptions.map((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text(value),
-                              );
-                            }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                fan1Display = newValue!;
-                                fan1On = true; // Auto turn on fan when changing display
-                              });
-                              channel!.sink.add('FAN_11:DISPLAY:${displayOptions.indexOf(fan1Display)}');
-                            },
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 20),                      
-                      ElevatedButton(
-                        onPressed: (!fan1On) ? () {
+                      SizedBox(height: 30),
+                      Text('Fan Speed', style: style),
+                      Slider(
+                        value: motorSpeed,
+                        min: 0,
+                        max: 100,
+                        divisions: 20,
+                        label: (motorSpeed).toInt().toString(),
+                        onChanged: (value) {
                           setState(() {
-                            fan1On = true;                        
+                            motorSpeed = value;
                           });
-                          channel!.sink.add('FAN_11:DISPLAY:${displayOptions.indexOf(fan1Display)}');
-                        } : null,
-                        child: Text('Turn ON'),
-                      ),                      
-                      SizedBox(height: 10),
-                      ElevatedButton(
-                        onPressed: (fan1On) ? () {
-                          setState(() {
-                            fan1On = false;
-                          });
-                          channel!.sink.add('FAN_11:DISPLAY:${-1}');
-                        } : null,
-                        child: Text('Turn OFF'),
-                      ),
-                    ],
-                  ),
-                  // Vertical line between columns - now auto stretches
-                  Container(
-                    width: 1,
-                    color: Colors.grey,
-                    margin: EdgeInsets.symmetric(horizontal: 20),
-                  ),
-                  //Fan 2 Controls
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(height: 20),
-                      Text("Fan 2 Controls"),
-                      SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment:
-                            CrossAxisAlignment.center, // Add this line
-                        children: [
-                          Text("Image:"),
-                          SizedBox(width: 10),
-                          DropdownButton<String>(
-                            value: fan2Display,
-                            items: displayOptions.map((String value) {
-                              return DropdownMenuItem<String>(
-                                value: value,
-                                child: Text(value),
-                              );
-                            }).toList(),
-                            onChanged: (String? newValue) {
-                              setState(() {
-                                fan2Display = newValue!;
-                                fan2On = true; // Auto turn on fan when changing display
-                              });                              
-                              channel!.sink.add('FAN_12:DISPLAY:${displayOptions.indexOf(fan2Display)}');
-                            },
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: (!fan2On) ? () {
-                          setState(() {
-                            fan2On = true;
-                          });
-                          channel!.sink.add('FAN_12:DISPLAY:${displayOptions.indexOf(fan2Display)}');
-                        } : null,
-                        child: Text('Turn ON'),
-                      ),
-                      SizedBox(height: 10),
-                      ElevatedButton(
-                        onPressed: (fan2On) ? () {
-                          setState(() {
-                            fan2On = false;
-                          });
-                          channel!.sink.add('FAN_12:DISPLAY:${-1}');
-                        } : null,
-                        child: Text('Turn OFF'),
+                          channel!.sink.add(
+                              'MOTOR_SPEED:${(motorSpeed.toInt() / 100) * 150}'); //Send and Convert to lower range for safety (speed limit max 1800 rpm no load)
+                        },
                       ),
                     ],
                   ),
                 ],
               ),
-            ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.max,
-              children: [
-                Column(
-                  children: [
-                    SizedBox(height: 30),
-                    Text('Fan Speed', style: style),
-                    Slider(
-                      value: motorSpeed,
-                      min: 0,
-                      max: 100,
-                      divisions: 20,
-                      label: (motorSpeed).toInt().toString(),
-                      onChanged: (value) {
-                        setState(() {
-                          motorSpeed = value;
-                        });
-                        channel!.sink.add(
-                            'MOTOR_SPEED:${(motorSpeed.toInt() / 100) * 150}'); //Send and Convert to lower range for safety (speed limit max 1800 rpm no load)
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
             ],
           ],
         ),
@@ -484,143 +497,49 @@ void connectToWebSocket() {
   }
 }
 
-class FavouritesPage extends StatelessWidget {
+
+
+class WelcomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context); //Get global theme
-
-    final style = theme.textTheme.titleLarge!.copyWith(
-      color: theme.colorScheme.primary, //Set text style color
-      fontWeight: FontWeight.bold,
-    );
-
-    var appState = context.watch<MyAppState>();
-
+    final theme = Theme.of(context);
+    
     return Scaffold(
-        body: ListView(
-      children: [
-        Row(
+      body: Center(
+        child: Column(
+          
+          mainAxisAlignment: MainAxisAlignment.start,
           children: [
-            Icon(
-              Icons.favorite,
-              color: theme.primaryColor,
-            ),
-            SizedBox(
-              width: 10,
-            ),
+            SizedBox(height: 40),
             Text(
-              'You have ${appState.fav.length} favourites:',
-              style: style,
+              textAlign: TextAlign.center,
+              'Welcome to your Holo3D Fan System',
+              style: theme.textTheme.headlineLarge?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 20),
+            RichText(
+              textAlign: TextAlign.center,
+              text: TextSpan(
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+              children: [
+                TextSpan(text: "Please connect to the \"Holo3D\" Wi-Fi hotspot after switching on the fan system.\n\nTo control the fans, press the \""),
+                WidgetSpan(child: Icon(Symbols.mode_fan, size: theme.textTheme.bodyMedium?.fontSize)),
+                TextSpan(text: "\" icon from the navigation rail on the left.\n\n"),
+              ],
+              ),
+            ),
+            Expanded(
+              child: Container(),
             ),
           ],
         ),
-        for (var msg in appState.fav)
-          ListTile(
-            title: Text(msg.asPascalCase),
-          ),
-      ],
-    ));
-  }
-}
-
-class GeneratorPage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    var appState = context.watch<MyAppState>();
-    var pair = appState.current;
-
-    //Like Icon
-    IconData likeIcon;
-    if (appState.fav.contains(pair)) {
-      likeIcon = Icons.favorite;
-    } else {
-      likeIcon = Icons.favorite_outline_outlined;
-    }
-
-    return Scaffold(
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            height: 150,
-            child: ListView(
-              controller: appState._scrollController,
-              children: [
-                for (var msg in appState.allWordPairs)
-                  if (appState.fav.contains(msg))
-                    ListTile(
-                      title: Text(msg.asPascalCase),
-                      leading: Icon(Icons.favorite),
-                    )
-                  else
-                    ListTile(title: Text(msg.asPascalCase))
-              ],
-            ),
-          ),
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                BigCard(pair: pair),
-                SizedBox(height: 18),
-                Row(
-                  mainAxisSize: MainAxisSize.min, // Use minimum row space
-                  children: [
-                    //Next button
-                    ElevatedButton(
-                      onPressed: () {
-                        appState.getNext();
-                      },
-                      child: Text('Next'),
-                    ),
-
-                    SizedBox(width: 20), //Some space
-
-                    //Like Button
-                    ElevatedButton.icon(
-                      onPressed: appState.toggleFavourite,
-                      label: Text('Like'),
-                      icon: Icon(likeIcon),
-                    )
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
 }
-
-class BigCard extends StatelessWidget {
-  const BigCard({
-    super.key,
-    required this.pair,
-  });
-
-  final WordPair pair;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context); //Get global theme
-
-    final style = theme.textTheme.displayMedium!.copyWith(
-      color: theme.colorScheme.onPrimary, //Set text style color
-    );
-
-    return Card(
-      color: theme.colorScheme.primary,
-      child: Padding(
-        padding: const EdgeInsets.all(20.0),
-
-        child: Text(
-          pair.asPascalCase,
-          style: style,
-          semanticsLabel:
-              "${pair.first} ${pair.second}", //For screen readers, sepearates the words better
-        ), //Display text and style
-      ),
-    );
-  }
-}
+ 

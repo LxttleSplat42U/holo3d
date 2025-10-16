@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
@@ -8,6 +7,11 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 // Enable sensors
 import 'dart:math';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:flutter/services.dart';   // Required for bluetooth remote support
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:network_info_plus/network_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 
 int USER_WS_ID = 255; //Global variable to store user ID for WebSocket
 
@@ -41,45 +45,9 @@ class Holo3D extends StatelessWidget {
   }
 }
 
-//Methods
+// Add this class definition to fix the error
 class MyAppState extends ChangeNotifier {
-  final ScrollController _scrollController = ScrollController();
-
-// Function to scroll to the bottom
-  void _scrollToBottom() {
-    _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent,
-      duration: Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
-  }
-
-  var current = WordPair.random();
-  var allWordPairs = <WordPair>[];
-
-//tutorial methods
-// Get next word
-  void getNext() {
-    current = WordPair.random();
-    allWordPairs.add(current);
-    _scrollToBottom();
-    notifyListeners();
-  }
-
-  //Favourites
-  var fav = <WordPair>[]; //Make list which only takes WordPair types
-
-  void toggleFavourite() {
-    //Add or remove favourite
-    if (fav.contains(current)) {
-      fav.remove(current);
-    } else {
-      fav.add(current);
-    }
-
-    notifyListeners();
-  }
-////////////////////////////////
+  // Add any app-wide state variables and methods here if needed
 }
 
 //Home Page
@@ -157,7 +125,10 @@ class _FanState extends State<Fan> {
     'Circle',
     'Arc',
     'Custom circle',
-    'E'
+    'E',
+    'E (RPM)',
+    'MNS',
+    'HI'
   ];
   double motorSpeed = 0;
   double fan1CirclePosition = 18;
@@ -174,7 +145,7 @@ class _FanState extends State<Fan> {
       false; // Global variable to enable fan stop on accel event
   StreamSubscription<UserAccelerometerEvent>? _accelSub;
   final double accelThreshold =
-      1.5; // m/s^2 magnitude of acceleration needed to trigger e-stop
+      2; // m/s^2 magnitude of acceleration needed to trigger e-stop
   bool fanShutdown =
       false; // Track if fans have been shut down due to accel event
 
@@ -185,10 +156,21 @@ class _FanState extends State<Fan> {
   Timer? _fan2ColorSendTimer;
 
   //Connect to WebSocket
+  bool isConnectedToHolo3DWifi = false;
+  String currentWifiName = '';
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
   WebSocketChannel? channel; // Make nullable
   bool isConnected = false;
   bool isConnecting = false;
   String connectionStatus = 'Not connected';
+  String serverMessage = '';
+  String fan1RPM = '0';
+  String fan2RPM = '0';
+  
+
+  // Bluetooth remote support
+  final _focusNode = FocusNode();
+  static const platform = MethodChannel('com.example.holo3d/keys');
 
   Timer?
       connectionTimeout; // Add timeout timer to keep from freezing when wifi networks are switched
@@ -226,11 +208,25 @@ class _FanState extends State<Fan> {
       channel!.stream.listen(
         (data) {
           print('Received from ESP32: $data');
+          if (data.toString().startsWith('11')) {
+            // Fan 1 message
+            setState(() {
+              fan1RPM = _parseServerMessage(data.toString()).split(':').last;
+            });
+          } else if (data.toString().startsWith('21')) {
+            // Fan 2 message
+            setState(() {
+              fan2RPM = _parseServerMessage(data.toString()).split(':').last;
+            });
+          }
           if (mounted) {
             setState(() {
               isConnected = true;
               isConnecting = false;
               connectionStatus = 'Connected';
+
+              // Parse and display server message
+              serverMessage = _parseServerMessage(data.toString());
             });
           }
         },
@@ -290,6 +286,25 @@ class _FanState extends State<Fan> {
     channel = null;
   }
 
+String _parseServerMessage(String data) {
+    // Example parsing logic - customize based on your server's message format
+    if (data.contains('11:RPM')) {
+      setState(() {
+      // Extract value between last ':' and second last ':'
+      final parts = data.split(':');
+      fan1RPM = parts.length >= 2 ? parts[parts.length - 2] : data.split(':').last;
+      });
+      return 'Fan 1 RPM: $fan1RPM';
+    } else if (data.contains('21:RPM')) {
+      setState(() {
+      final parts = data.split(':');
+      fan2RPM = parts.length >= 2 ? parts[parts.length - 2] : data.split(':').last;
+      });
+      return 'Fan 2 RPM: $fan2RPM';
+    } else {
+      return data; // Display raw message if no match
+    }
+  }
 // Update Fan 1 display
   void _updateSelectedColorFan1(Color color) {
     setState(() => fan1SelectedColor = color);
@@ -369,7 +384,7 @@ class _FanState extends State<Fan> {
                 // store & send as the value changes
                 _updateSelectedColorFan1(color);
               },
-              enableAlpha: false, // Enable alpha slider
+              enableAlpha: false, // Disable alpha slider
               displayThumbColor: true,
               pickerAreaHeightPercent: 0.7,
             ),
@@ -386,6 +401,7 @@ class _FanState extends State<Fan> {
                   fan1SelectedColor = tempColorFan1;
                 });
                 Navigator.of(context).pop();
+                _updateSelectedColorFan1(tempColorFan1);
               },
             ),
           ],
@@ -411,7 +427,7 @@ class _FanState extends State<Fan> {
                 // store & send as the value changes
                 _updateSelectedColorFan2(color);
               },
-              enableAlpha: false, // Enable alpha slider
+              enableAlpha: false, // Disable alpha slider
               displayThumbColor: true,
               pickerAreaHeightPercent: 0.7,
             ),
@@ -428,6 +444,8 @@ class _FanState extends State<Fan> {
                   fan2SelectedColor = tempColorFan2;
                 });
                 Navigator.of(context).pop();
+                // store & send as the value changes
+                _updateSelectedColorFan2(tempColorFan2);
               },
             ),
           ],
@@ -436,8 +454,8 @@ class _FanState extends State<Fan> {
     );
   }
 
-void _RestartFan() {
-  // Reinitialise all variables
+  void _RestartFan() {
+    // Reinitialise all variables
     motorSpeed = 0;
     fan1CirclePosition = 18;
     fan2CirclePosition = 18;
@@ -453,8 +471,7 @@ void _RestartFan() {
     fanShutdown = false; // Track if fans have been shut down due to accel event
     enableFanStop = false;
     channel!.sink.add('RESTART');
-}
-
+  }
 
 ////////////////////////////////////////////////////////
 ////The following section implements accelerometer support to trigger fan shut-off for safety to prevent accidental injury
@@ -463,6 +480,27 @@ void _RestartFan() {
   @override
   void initState() {
     super.initState();
+    // Used to confirm user connected to correct WiFi network
+     // Check WiFi connection status
+    _checkWifiConnection();
+    
+    // Listen for WiFi changes
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> result) {
+      _checkWifiConnection();
+    });
+
+    // Listen for native Android key events [Bluetooth remote support]
+    platform.setMethodCallHandler((call) async {
+      if (call.method == 'onKeyDown') {
+      int keyCode = call.arguments;
+      
+      // Only trigger on keycode 24 [Android button] or 25 [iOS button]
+      if (keyCode == 24 || keyCode == 25) {
+        _onBluetoothButtonPressed(keyCode);
+      }
+      }
+    });
+
     // start listening but don't block UI
     _accelSub = userAccelerometerEventStream().listen((event) {
       final mag = sqrt(event.x * event.x +
@@ -471,13 +509,78 @@ void _RestartFan() {
               event.z); // Calculate magnitude of acceleration accross all axes
       print('Accel magnitude: $mag'); // Check in debug console
       if (mag > accelThreshold) {
-        _onAccelerated(mag);        
+        _onAccelerated(mag);
       }
     }, onError: (err) {
       print('Accelerometer error: $err');
     });
+   
+   WidgetsBinding.instance.addPostFrameCallback((_) {
+      _focusNode.requestFocus();
+    });
   }
 
+////////////////////////////////////////////////////////////////////////
+// Check if connected to Holo3D WiFi
+  Future<void> _checkWifiConnection() async {
+    try {
+      // Request location permission (required for WiFi name on Android 10+)
+    var status = await Permission.location.status;
+    if (!status.isGranted) {
+      status = await Permission.location.request();
+      if (!status.isGranted) {
+        if (mounted) {
+          setState(() {
+            connectionStatus = 'Location permission needed to check WiFi';
+            isConnectedToHolo3DWifi = false;
+          });
+        }
+        return;
+      }
+    }
+
+      final connectivityResult = await Connectivity().checkConnectivity();
+      
+      if (connectivityResult.contains(ConnectivityResult.wifi)) {
+        final networkInfo = NetworkInfo();
+        final wifiName = await networkInfo.getWifiName();
+        
+        if (mounted) {
+          setState(() {
+            // Remove quotes if present
+            currentWifiName = wifiName?.replaceAll('"', '') ?? '';
+            isConnectedToHolo3DWifi = currentWifiName == 'Holo3D';
+            
+            if (!isConnectedToHolo3DWifi && isConnected) {
+              // Disconnect if WiFi changes
+              channel?.sink.close();
+              isConnected = false;
+              isConnecting = false;
+              connectionStatus = 'Please connect to the Holo3D WiFi network';
+            }
+          });
+          print('Current WiFi: $currentWifiName, Connected to Holo3D: $isConnectedToHolo3DWifi');
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            currentWifiName = '';
+            isConnectedToHolo3DWifi = false;
+            connectionStatus = 'Please connect to WiFi';
+          });
+        }
+      }
+    } catch (e) {
+      print('Error checking WiFi: $e');
+      if (mounted) {
+        setState(() {
+          isConnectedToHolo3DWifi = false;
+          connectionStatus = 'Unable to check WiFi';
+        });
+      }
+    }
+  }
+  /////////////////////////////////////////////////////////
   void _onAccelerated(double magnitude) {
     if (!enableFanStop) return; // Only trigger if enabled
     try {
@@ -485,17 +588,40 @@ void _RestartFan() {
       setState(() {
         fanShutdown = true;
       });
-      
+
       print('Sent accel message: ${-1}');
     } catch (e) {
       print('Failed to send accel message: $e');
     }
   }
   /////////////////////////////////////////////////////////////////////
+  /// Bluetooth remote support
+    // Handle camera button press
+  void _onBluetoothButtonPressed(int keyCode) {
+    print('Bluetooth remote button pressed with keyCode: $keyCode');
 
+    if (keyCode == 24){ // Android button [Turn off all displays]
+    setState(() {
+      fan1On = false;
+      fan2On = false;
+    });
+      channel!.sink.add('11:DISPLAY:${-1}:');
+      channel!.sink.add('21:DISPLAY:${-1}:');
+    } else if (keyCode == 25){ // iOS button [Turn on both displays]
+      setState(() {
+        fan1On = true;
+        fan2On = true;
+      });
+      _updateSelectedColorFan1(fan1SelectedColor);
+      _updateSelectedColorFan2(fan2SelectedColor);
+    }
+  }
+  /////////////////////////////////////////////////////////////////////////
   @override
   void dispose() {
+    _focusNode.dispose();
     _accelSub?.cancel();
+    _connectivitySubscription?.cancel();
     channel?.sink.close();
     super.dispose();
   }
@@ -512,6 +638,8 @@ void _RestartFan() {
 
     //Limit text overflow in dropdowns
     final bool layoutExpanded = MediaQuery.of(context).size.width >= 600;
+
+
 
     print('Scaffold start');
     return Scaffold(
@@ -533,51 +661,66 @@ void _RestartFan() {
                 children: [
                   ElevatedButton(
                     //Connect to server
-                    onPressed: isConnecting ? null : connectToWebSocket,
-                    child: Text(isConnecting ? 'Connecting...' : 'Connect'),
+                    // Only enable if connected to Holo3D WiFi
+                    // onPressed: (isConnecting || !isConnectedToHolo3DWifi) 
+                    onPressed: (isConnecting)
+                        ? null 
+                        : connectToWebSocket,
+                        child: Text(isConnecting
+                        ? 'Connecting...': 'Connect'),
+                    // child: Text(isConnecting 
+                    //       ? 'Connecting...' 
+                    //       : (!isConnectedToHolo3DWifi 
+                    //           ? 'Connect to Holo3D WiFi first' 
+                    //           : 'Connect'),
+                    //           ),
                   ),
                 ],
               ),
-            ],          
+            ],
 
             if (isConnected) ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  if (!fanShutdown) ...[
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          enableFanStop = !enableFanStop;
-                        });
-                      },
-                      child: Text(enableFanStop
-                          ? 'Disable Fan Stop'
-                          : 'Enable Fan Stop'),
-                    ),
-                  ] else ... [
-                    ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _RestartFan();
-                        });
-                      },
-                      child: Text('Restart fan system'),
-                    ),
-                  ],
-
-                  SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      //Disconnect from server
-                      channel?.sink.close();
-                      setState(() {
-                        isConnected = false;
-                        isConnecting = false;
-                        connectionStatus = 'Lost connection';
-                      });
-                    },
-                    child: Text('Disconnect'),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (!fanShutdown) ...[
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              enableFanStop = !enableFanStop;
+                            });
+                          },
+                          child: Text(enableFanStop
+                              ? 'Disable Fan E-Stop'
+                              : 'Enable Fan E-Stop'),
+                        ),
+                      ] else ...[
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _RestartFan();
+                            });
+                          },
+                          child: Text('Restart fan system'),
+                        ),
+                      ],
+                      SizedBox(width: 20),
+                      ElevatedButton(
+                        onPressed: () {
+                          //Disconnect from server
+                          channel?.sink.close();
+                          setState(() {
+                            isConnected = false;
+                            isConnecting = false;
+                            connectionStatus = 'Lost connection';
+                          });
+                        },
+                        child: Text('Disconnect'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -593,7 +736,9 @@ void _RestartFan() {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           SizedBox(height: 20),
-                          Text("Fan 1 Controls"),
+                          Text("Fan 1 Controls"), 
+                          SizedBox(height: 20),
+                          Text("RPM: $fan1RPM"),                        
                           SizedBox(height: 20),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
@@ -605,7 +750,8 @@ void _RestartFan() {
                                 width: 5,
                               ),
                               SizedBox(
-                                width: layoutExpanded ? 200 : 75,
+                                width: layoutExpanded ? 200 : 75
+                                ,
                                 child: DropdownButton<String>(
                                   isExpanded: true,
                                   value: fan1Display,
@@ -705,6 +851,8 @@ void _RestartFan() {
                           SizedBox(height: 20),
                           Text("Fan 2 Controls"),
                           SizedBox(height: 20),
+                          Text("RPM: $fan2RPM"),
+                          SizedBox(height: 20),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment:
@@ -785,6 +933,12 @@ void _RestartFan() {
                                   });
                                   _updateSelectedColorFan2(fan2SelectedColor);
                                 },
+                                onChangeEnd: (value) {
+                                  setState(() {
+                                    fan2CirclePosition = value;
+                                  });
+                                  _updateSelectedColorFan2(fan2SelectedColor);
+                                },
                               ),
                             ),
                             ElevatedButton.icon(
@@ -818,8 +972,8 @@ void _RestartFan() {
                           value: motorSpeed,
                           min: 0,
                           max: 100,
-                          divisions: 50,
-                          label: (motorSpeed).toInt().toString(),
+                          divisions: 25,
+                          label: (motorSpeed).toInt().toString(),                          
                           onChanged: (value) {
                             setState(() {
                               motorSpeed = value;
@@ -836,7 +990,7 @@ void _RestartFan() {
             ],
           ],
         ),
-      ),
+      ),    
     );
   }
 }

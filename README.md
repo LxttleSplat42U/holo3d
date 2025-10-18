@@ -29,5 +29,5 @@ This Demo application can be used to inspect the UI without requiring a connecti
 
 ## Requirements
 - Android 5.0 (Lollipop) or higher
-- Holo3D fan system with WiFi hotspot (not required if Holo3D demo is used from ttps://github.com/LxttleSplat42U/holo3d/tree/Demo-mode)
+- Holo3D fan system with WiFi hotspot (not required if Holo3D demo is used from https://github.com/LxttleSplat42U/holo3d/tree/Demo-mode)
 

@@ -13,7 +13,7 @@
     android:usesPermissionFlags="neverForLocation" />
     
     <application
-        android:label="Holo3D"
+        android:label="Holo3D Demo"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

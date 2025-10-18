@@ -45,9 +45,9 @@ class Holo3D extends StatelessWidget {
   }
 }
 
-// Add this class definition to fix the error
+
 class MyAppState extends ChangeNotifier {
-  // Add any app-wide state variables and methods here if needed
+  
 }
 
 //Home Page
@@ -151,6 +151,7 @@ class _FanState extends State<Fan> {
       false; // Track if fans have been shut down due to accel event
   String customTextfan1 = 'HOLO';
   String customTextfan2 = 'HOLO';
+  bool demoMode = false; // Demo mode is no fan systems are available
 
   // throttle helpers: only send color update at most once per second
   DateTime? _fan1LastColorSent;
@@ -176,7 +177,7 @@ class _FanState extends State<Fan> {
   static const platform = MethodChannel('com.example.holo3d/keys');
 
   Timer?
-      connectionTimeout; // Add timeout timer to keep from freezing when wifi networks are switched
+      connectionTimeout; // Timeout timer to keep from freezing when wifi networks are switched
 
   void connectToWebSocket() {
     if (isConnecting || isConnected) return; // Prevent multiple connections
@@ -473,7 +474,7 @@ String _parseServerMessage(String data) {
     enableFanStop = false;
     fanShutdown = false; // Track if fans have been shut down due to accel event
     enableFanStop = false;
-    channel!.sink.add('RESTART');
+    channel?.sink.add('RESTART');
   }
 
 ////////////////////////////////////////////////////////
@@ -587,7 +588,7 @@ String _parseServerMessage(String data) {
   void _onAccelerated(double magnitude) {
     if (!enableFanStop) return; // Only trigger if enabled
     try {
-      channel!.sink.add('${-1}');
+      channel?.sink.add('${-1}');
       setState(() {
         fanShutdown = true;
       });
@@ -642,8 +643,6 @@ String _parseServerMessage(String data) {
     //Limit text overflow in dropdowns
     final bool layoutExpanded = MediaQuery.of(context).size.width >= 600;
 
-
-
     print('Scaffold start');
     return Scaffold(
       body: Center(
@@ -663,26 +662,23 @@ String _parseServerMessage(String data) {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   ElevatedButton(
-                    //Connect to server
-                    // Only enable if connected to Holo3D WiFi
-                    // onPressed: (isConnecting || !isConnectedToHolo3DWifi) 
                     onPressed: (isConnecting)
                         ? null 
                         : connectToWebSocket,
                         child: Text(isConnecting
-                        ? 'Connecting...': 'Connect'),
-                    // child: Text(isConnecting 
-                    //       ? 'Connecting...' 
-                    //       : (!isConnectedToHolo3DWifi 
-                    //           ? 'Connect to Holo3D WiFi first' 
-                    //           : 'Connect'),
-                    //           ),
+                        ? 'Connecting...': 'Connect'),                    
                   ),
                 ],
               ),
+              SizedBox(height: 20),
+              ElevatedButton(onPressed: () {
+                setState(() {
+                  demoMode = !demoMode;
+                });
+              }, child: Text(demoMode ? 'Exit Demo Mode' : 'Enter Demo Mode'))
             ],
 
-            if (isConnected) ...[
+            if (isConnected || demoMode) ...[
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -718,6 +714,7 @@ String _parseServerMessage(String data) {
                           setState(() {
                             isConnected = false;
                             isConnecting = false;
+                            demoMode = false;
                             connectionStatus = 'Lost connection';
                           });
                         },
@@ -746,7 +743,7 @@ String _parseServerMessage(String data) {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment:
-                                CrossAxisAlignment.center, // Add this line
+                                CrossAxisAlignment.center, 
                             children: [
                               Text("Image:"),
                               SizedBox(
@@ -801,7 +798,7 @@ String _parseServerMessage(String data) {
                                     setState(() {
                                       fan1On = false;
                                     });
-                                    channel!.sink.add('11:DISPLAY:${-1}:');
+                                    channel?.sink.add('11:DISPLAY:${-1}:');
                                   }
                                 : null,
                             child: Text('Turn OFF'),
@@ -898,7 +895,7 @@ String _parseServerMessage(String data) {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment:
-                                CrossAxisAlignment.center, // Add this line
+                                CrossAxisAlignment.center, 
                             children: [
                               Text("Image:"),
                               SizedBox(
@@ -952,7 +949,7 @@ String _parseServerMessage(String data) {
                                     setState(() {
                                       fan2On = false;
                                     });
-                                    channel!.sink.add('21:DISPLAY:${-1}:');
+                                    channel?.sink.add('21:DISPLAY:${-1}:');
                                   }
                                 : null,
                             child: Text('Turn OFF'),
@@ -1059,7 +1056,7 @@ String _parseServerMessage(String data) {
                             setState(() {
                               motorSpeed = value;
                             });
-                            channel!.sink.add(
+                            channel?.sink.add(
                                 'MOTOR_SPEED:${(motorSpeed.toInt() / 100) * 150}'); //Send and Convert to lower range for safety (speed limit max 1800 rpm no load)
                           },
                         ),

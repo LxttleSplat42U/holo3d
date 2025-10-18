@@ -32,6 +32,9 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icons/Holo3D.png"
+  adaptive_icon_background: "#00FFFF"  # Solid color background
+  adaptive_icon_foreground: "assets/icons/Holo3D.png"  # Icon without background
+  adaptive_icon_padding: 0
 
 flutter:
   uses-material-design: true

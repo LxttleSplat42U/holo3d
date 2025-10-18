@@ -128,7 +128,8 @@ class _FanState extends State<Fan> {
     'E',
     'E (RPM)',
     'MNS',
-    'HI'
+    'HI',
+    'Text'
   ];
   double motorSpeed = 0;
   double fan1CirclePosition = 18;
@@ -148,6 +149,8 @@ class _FanState extends State<Fan> {
       2; // m/s^2 magnitude of acceleration needed to trigger e-stop
   bool fanShutdown =
       false; // Track if fans have been shut down due to accel event
+  String customTextfan1 = 'HOLO';
+  String customTextfan2 = 'HOLO';
 
   // throttle helpers: only send color update at most once per second
   DateTime? _fan1LastColorSent;
@@ -316,7 +319,7 @@ String _parseServerMessage(String data) {
       if (displayOptions.indexOf(fan1Display) == 2) {
         // Display custom circle only if selected
         final hex =
-            '11:DISPLAY:${displayOptions.indexOf(fan1Display)}:0x${fan1SelectedColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}:${fan1CirclePosition.toInt() - 1}:';
+            '11:DISPLAY:${displayOptions.indexOf(fan1Display)}:0x${fan1SelectedColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}:${18 - fan1CirclePosition.toInt()}:';
         try {
           channel?.sink.add(hex);
           print('Sent color: COLOR:$hex');
@@ -347,7 +350,7 @@ String _parseServerMessage(String data) {
       if (displayOptions.indexOf(fan2Display) == 2) {
         // Display custom circle only if selected
         final hex =
-            '21:DISPLAY:${displayOptions.indexOf(fan2Display)}:0x${fan2SelectedColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}:${fan2CirclePosition.toInt() - 1}:';
+            '21:DISPLAY:${displayOptions.indexOf(fan2Display)}:0x${fan2SelectedColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}:${18 - fan2CirclePosition.toInt()}:';
         try {
           channel?.sink.add(hex);
           print('Sent color: COLOR:$hex');
@@ -566,7 +569,7 @@ String _parseServerMessage(String data) {
           setState(() {
             currentWifiName = '';
             isConnectedToHolo3DWifi = false;
-            connectionStatus = 'Please connect to WiFi';
+            connectionStatus = 'Please connect to WiFi "Holo3D" ';
           });
         }
       }
@@ -835,6 +838,45 @@ String _parseServerMessage(String data) {
                                     Theme.of(context).colorScheme.surface,
                               ),
                             ),
+                          ] else if (displayOptions.indexOf(fan1Display) == 7) ...[
+                            // Custom text
+                            SizedBox(height: 20),
+                            Text('Custom Text'),
+                            SizedBox(height: 10),
+                            SizedBox(
+                              width: 70,
+                              child: TextField(
+                                maxLength: 7,
+                                textAlign: TextAlign.center,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  hintText: 'Enter text',
+                                  counterText: '', // Hide character counter
+                                ),
+                                onChanged: (value) {
+                                  setState(() {
+                                    customTextfan1 = value.toUpperCase();
+                                  });
+                                },
+                                onSubmitted: (value) {
+                                  setState(() {
+                                    customTextfan1 = value.toUpperCase();
+                                  });
+                                  // Send custom text to server
+                                  channel?.sink.add('11:DISPLAY:${displayOptions.indexOf(fan1Display)}:$customTextfan1:');
+                                  print('Sent custom text: $customTextfan1');
+                                },
+                              ),
+                            ),
+                            SizedBox(height: 10),
+                            ElevatedButton(
+                              onPressed: () {
+                                // Send custom text when button pressed
+                                channel?.sink.add('11:DISPLAY:${displayOptions.indexOf(fan1Display)}:$customTextfan1:');
+                                print('Sent custom text: $customTextfan1');
+                              },
+                              child: Text('Send Text'),
+                            ),
                           ],
                         ],
                       ),
@@ -953,6 +995,45 @@ String _parseServerMessage(String data) {
                                 backgroundColor:
                                     Theme.of(context).colorScheme.surface,
                               ),
+                            ),
+                          ] else if (displayOptions.indexOf(fan2Display) == 7) ...[
+                            // Custom text
+                            SizedBox(height: 20),
+                            Text('Custom Text'),
+                            SizedBox(height: 10),
+                            SizedBox(
+                              width: 70,
+                              child: TextField(
+                                maxLength: 7,
+                                textAlign: TextAlign.center,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(),
+                                  hintText: 'Enter text',
+                                  counterText: '', // Hide character counter
+                                ),
+                                onChanged: (value) {
+                                  setState(() {
+                                    customTextfan2 = value.toUpperCase();
+                                  });
+                                },
+                                onSubmitted: (value) {
+                                  setState(() {
+                                    customTextfan2 = value.toUpperCase();
+                                  });
+                                  // Send custom text to server
+                                  channel?.sink.add('21:DISPLAY:${displayOptions.indexOf(fan2Display)}:$customTextfan2:');
+                                  print('Sent custom text: $customTextfan2');
+                                },
+                              ),
+                            ),
+                            SizedBox(height: 10),
+                            ElevatedButton(
+                              onPressed: () {
+                                // Send custom text when button pressed
+                                channel?.sink.add('21:DISPLAY:${displayOptions.indexOf(fan2Display)}:$customTextfan2:');
+                                print('Sent custom text: $customTextfan2');
+                              },
+                              child: Text('Send Text'),
                             ),
                           ],
                         ],

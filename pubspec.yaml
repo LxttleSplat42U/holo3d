@@ -1,9 +1,9 @@
 name: Holo3D
-description: A new Flutter project.
+description: "MNS6 Design, build and testing of a 3D hologram-like RGB LED fan display"
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 
-version: 0.0.1
+version: 1.0.0+1
 
 environment:
   sdk: ^3.6.0
@@ -25,8 +25,13 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icons/Holo3D.png"
 
 flutter:
   uses-material-design: true

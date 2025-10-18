@@ -16,8 +16,6 @@ import 'package:permission_handler/permission_handler.dart';
 int USER_WS_ID = 255; //Global variable to store user ID for WebSocket
 
 bool Fan1_LED = true; //Global variable to store LED state
-bool DemoMode =
-    false; //Used to override and show fan controls without connecting to Holo3D fan system
 
 void main() {
   //runApp(MyApp());
@@ -45,9 +43,9 @@ class Holo3D extends StatelessWidget {
   }
 }
 
-// Add this class definition to fix the error
+
 class MyAppState extends ChangeNotifier {
-  // Add any app-wide state variables and methods here if needed
+  
 }
 
 //Home Page
@@ -176,7 +174,7 @@ class _FanState extends State<Fan> {
   static const platform = MethodChannel('com.example.holo3d/keys');
 
   Timer?
-      connectionTimeout; // Add timeout timer to keep from freezing when wifi networks are switched
+      connectionTimeout; 
 
   void connectToWebSocket() {
     if (isConnecting || isConnected) return; // Prevent multiple connections
@@ -746,7 +744,7 @@ String _parseServerMessage(String data) {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment:
-                                CrossAxisAlignment.center, // Add this line
+                                CrossAxisAlignment.center, 
                             children: [
                               Text("Image:"),
                               SizedBox(
@@ -898,7 +896,7 @@ String _parseServerMessage(String data) {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment:
-                                CrossAxisAlignment.center, // Add this line
+                                CrossAxisAlignment.center,
                             children: [
                               Text("Image:"),
                               SizedBox(

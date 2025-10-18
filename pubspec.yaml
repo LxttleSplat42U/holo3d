@@ -1,4 +1,4 @@
-name: Holo3D
+name: Holo3DDemo
 description: "MNS6 Design, build and testing of a 3D hologram-like RGB LED fan display"
 
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev

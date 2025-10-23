@@ -9,6 +9,8 @@ If the fan system is unavailable or cannot be connected to, you can install the 
 https://github.com/LxttleSplat42U/holo3d/tree/Demo-mode
 This Demo application lets you explore the UI without connecting to the actual fan system.
 
+For the main source code, please navigate to `lib->main.dart` or click the link https://github.com/LxttleSplat42U/holo3d/blob/main/lib/main.dart
+
 # Holo3D Fan Controller v1.0.0
 
 ## Features

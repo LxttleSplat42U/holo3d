@@ -3,9 +3,9 @@ Created by: SP Botes for my 2025 skripsie project
 
 This application is used to control the Holo3D fan system.
 
-To download the standalone Android application, install the "app-release.apk" file in the "Android_APK" folder.
+To download the standalone Android application, install the `app-release.apk` file in the `Android_APK` folder.
 
-If the fan system is unavailable or cannot be connected to, you can install the Demo application's "app-release.apk" from the "Android_APK" folder in the Demo branch:
+If the fan system is unavailable or cannot be connected to, you can install the Demo application's `app-release.apk` from the `Android_APK` folder in the Demo branch:
 https://github.com/LxttleSplat42U/holo3d/tree/Demo-mode
 This Demo application lets you explore the UI without connecting to the actual fan system.
 

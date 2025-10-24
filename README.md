@@ -18,6 +18,10 @@ https://github.com/user-attachments/assets/cd5323ba-ea31-4f86-bab2-348c7ad43074
 
 # UI Schowcase 2: App navigation
 
+
+https://github.com/user-attachments/assets/2f870af5-3d18-4634-a598-304fd49f4e8f
+
+
 # Holo3D Fan Controller v1.0.0
 
 ## Features

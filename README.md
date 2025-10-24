@@ -1,4 +1,5 @@
 # Holo3D mobile companion app
+
 Created by: SP Botes for my 2025 skripsie project
 
 This application is used to control the Holo3D fan system.
@@ -10,6 +11,12 @@ https://github.com/LxttleSplat42U/holo3d/tree/Demo-mode
 This Demo application lets you explore the UI without connecting to the actual fan system.
 
 For the main source code, please navigate to `lib->main.dart` or click the link https://github.com/LxttleSplat42U/holo3d/blob/main/lib/main.dart
+
+# UI Showcase 1: Auto fit to device aspect ratio
+
+https://github.com/user-attachments/assets/cd5323ba-ea31-4f86-bab2-348c7ad43074
+
+# UI Schowcase 2: App navigation
 
 # Holo3D Fan Controller v1.0.0
 
